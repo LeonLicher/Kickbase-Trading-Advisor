@@ -1,4 +1,4 @@
-from kickbase_api.player_data import (
+from kickbase_api.player import (
     get_all_players,
     get_player_info,
     get_player_market_value,
@@ -44,6 +44,9 @@ def create_player_data_table():
 def check_if_data_reload_needed():
     """Check if data reload is needed based on the last entry with null market value"""
 
+    print("\nData reload needed, this takes a few minutes...")
+    return True # Due to some issues with the data, we always reload for now, until fixed
+
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     today_date = now.date()
 
@@ -83,18 +86,17 @@ def check_if_data_reload_needed():
         # Cutoff-Time: 22:15 Uhr
         cutoff = now.replace(hour=22, minute=15, second=0, microsecond=0)
 
-        # If it is before 22:15 then yesterday should exist in the database with a mv value 
-        # or today should exist with a null mv value
+        # If it is before 22:15 then yesterday should exist in the database with a mv value or today should exist with a null mv value
         if now < cutoff and (last_non_null_entry == today_date - timedelta(days=1) or last_null_entry == today_date):
             return False
 
-        # If it is after 22:15 then tomorrow should exist in the database with a mv value
-        elif now >= cutoff and last_non_null_entry == today_date + timedelta(days=1):
+        # If it is after 22:15 today should exist in the database with a mv value
+        elif now >= cutoff and last_non_null_entry == today_date:
             return False
         
         # Any other case we need to reload
         else:
-            print("Data reload needed, this takes a few minutes...")
+            print("\nData reload needed, this takes a few minutes...")
             return True
 
 
@@ -116,6 +118,13 @@ def save_player_data_to_db(token, competition_ids, last_mv_values, last_pfm_valu
                 mv_df = pd.DataFrame(get_player_market_value(token, competition_id, player_id, last_mv_values))
                 if not mv_df.empty:
                     mv_df["date"] = pd.to_datetime(mv_df["date"]).sort_values()
+
+                # Special case for players with 500k market value and no change, manually add them
+                #if (mv_df["date"].max() < pd.Timestamp(datetime.now(ZoneInfo("Europe/Berlin")).date())) and mv_df["mv"].iloc[-1] == 500_000:
+                #    print("Testing special case")
+                #    last_row = mv_df.iloc[-1].copy()
+                #    last_row["date"] = pd.Timestamp(datetime.now(ZoneInfo("Europe/Berlin")).date())
+                #    mv_df = pd.concat([mv_df, pd.DataFrame([last_row])], ignore_index=True)
 
                 # Performance
                 p_df = pd.DataFrame(get_player_performance(token, competition_id, player_id, last_pfm_values, player_team_id))

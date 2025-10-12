@@ -1,9 +1,6 @@
-from kickbase_api.user_management import get_players_in_squad
+from kickbase_api.league import get_league_players_on_market
+from kickbase_api.user import get_players_in_squad
 from datetime import datetime, timedelta
-from kickbase_api.league_data import (
-    get_leagues_infos,
-    get_players_on_market,
-)
 from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
@@ -48,6 +45,8 @@ def join_current_squad(token, league_id, today_df_results):
     )
 
     # Rename prob to s_11_prob for better understanding
+    if "prob" not in squad_df.columns:
+        squad_df["prob"] = np.nan  # Placeholder for non-pro users
     squad_df = squad_df.rename(columns={"prob": "s_11_prob"})
 
     # Rename mv_change_1d to mv_change_yesterday for better understanding
@@ -57,16 +56,16 @@ def join_current_squad(token, league_id, today_df_results):
     squad_df = squad_df.rename(columns={"mv_x": "mv"})
 
     # Keep only relevant columns
-    squad_df = squad_df[["first_name", "last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob"]]
+    squad_df = squad_df[["last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob"]]
 
-    return squad_df  # Debugging line to inspect the response structure
+    return squad_df 
 
 
 # TODO Add fail-safe check before player expires if the prob (starting 11) is still high, so no injuries or anything. if it dropped. dont bid / reccommend
 def join_current_market(token, league_id, today_df_results):
     """Join the live predictions with the current market data to get bid recommendations"""
 
-    players_on_market = get_players_on_market(token, league_id)
+    players_on_market = get_league_players_on_market(token, league_id)
 
     # players_on_market to DataFrame
     market_df = pd.DataFrame(players_on_market)
@@ -95,12 +94,14 @@ def join_current_market(token, league_id, today_df_results):
     bid_df = bid_df.sort_values("predicted_mv_target", ascending=False)
 
     # Rename prob to s_11_prob for better understanding
+    if "prob" not in bid_df.columns:
+        bid_df["prob"] = np.nan  # Placeholder for non-pro users
     bid_df = bid_df.rename(columns={"prob": "s_11_prob"})
 
     # Rename mv_change_1d to mv_change_yesterday for better understanding
     bid_df = bid_df.rename(columns={"mv_change_1d": "mv_change_yesterday"})
 
     # Keep only relevant columns
-    bid_df = bid_df[["first_name", "last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob", "hours_to_exp", "expiring_today"]]
+    bid_df = bid_df[["last_name", "team_name", "mv", "mv_change_yesterday", "predicted_mv_target", "s_11_prob", "hours_to_exp", "expiring_today"]]
 
     return bid_df

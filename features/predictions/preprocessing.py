@@ -8,7 +8,11 @@ def preprocess_player_data(df):
     
     # 1. Sort and filter
     df = df.sort_values(["player_id", "date"])
-    df = df[(df["team_id"] == df["t1"]) | (df["team_id"] == df["t2"])]  # keep only t1 or t2
+    df = df[     # Keep rows where team_id matches t1 or t2 OR where both t1 and t2 are missing
+        (df["team_id"] == df["t1"]) |
+        (df["team_id"] == df["t2"]) |
+        (df["t1"].isna() & df["t2"].isna())
+    ]
 
     # Convert date columns to datetime
     df["date"] = pd.to_datetime(df["date"])
@@ -62,7 +66,6 @@ def preprocess_player_data(df):
         "won": -1
     })
 
-    # TODO: Move this into separate function
     # 7. Cutout todays values and store them
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     cutoff_time = now.replace(hour=22, minute=15, second=0, microsecond=0)
@@ -83,7 +86,10 @@ def preprocess_player_data(df):
 def split_data(df, features, target):
     """Split the data into training and testing sets based on date to avoid data leakage"""
 
-    split_idx = int(len(df) * 0.8)
+    # Sort by date
+    df = df.sort_values("date").reset_index(drop=True)
+
+    split_idx = int(len(df) * 0.75)
     split_date = df["date"].iloc[split_idx]
 
     # Split by time, to avoid data leakage
