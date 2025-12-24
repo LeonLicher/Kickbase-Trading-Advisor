@@ -10,9 +10,6 @@ from kickbase_api.manager import (
 )
 from kickbase_api.others import get_achievement_reward
 import pandas as pd
-import logging
-
-logger = logging.getLogger(__name__)
 
 def calc_manager_budgets(token, league_id, league_start_date, start_budget, reset_baseline_points=None):
     """Calculate manager budgets based on activities, bonuses, and team performance.
@@ -37,18 +34,25 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
 
     # Bonuses
     total_login_bonus = sum(entry.get("data", {}).get("bn", 0) for entry in login_bonus)
+    print(f"\n1️⃣ LOGIN BONUS: {total_login_bonus:,.2f}€ (from {len(login_bonus)} login events)")
+    if len(login_bonus) > 0:
+        print(f"   First login: {login_bonus[0].get('dt', 'N/A')}")
+        print(f"   Last login: {login_bonus[-1].get('dt', 'N/A')}")
 
     total_achievement_bonus = 0
+    print(f"\n2️⃣ ACHIEVEMENT BONUSES:")
     for item in achievement_bonus:
         try:
             a_id = item.get("data", {}).get("t")
             if a_id is None:
-                logger.info(f"[ACHIEVEMENTS] Entry {idx}: No achievement ID found, skipping")
                 continue
             amount, reward = get_achievement_reward(token, league_id, a_id)
             total_achievement_bonus += amount * reward
+            print(f"   Achievement {a_id}: {amount} x {reward:,.0f}€ = {amount * reward:,.2f}€")
         except Exception as e:
             print(f"Warning: Failed to process achievement bonus {item}: {e}")
+    
+    print(f"   TOTAL: {total_achievement_bonus:,.2f}€")
 
     # Manager performances
     try:
@@ -75,7 +79,14 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
 
     perf_df = pd.DataFrame(performances)
     if not perf_df.empty:
-        perf_df["point_bonus"] = perf_df["tp"].fillna(0) * 1000
+        # Calculate points earned since reset (baseline points subtracted)
+        print(f"\n⚠️  Using baseline points from reset - calculating points since reset:")
+        perf_df["baseline_points"] = perf_df["name"].map(reset_baseline_points).fillna(0)
+        perf_df["points_since_reset"] = perf_df["tp"].fillna(0) - perf_df["baseline_points"]
+        perf_df["point_bonus"] = perf_df["points_since_reset"] * 1000
+        
+        for _, row in perf_df.iterrows():
+            print(f"   {row['name']}: {row['tp']:.0f} - {row['baseline_points']:.0f} = {row['points_since_reset']:.0f} points → {row['point_bonus']:,.0f}€")
     else:
         perf_df["name"] = []
         perf_df["point_bonus"] = []
@@ -85,35 +96,18 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
     budgets = {user: start_budget for user in set(activities_df["byr"].dropna().unique())
                                           .union(set(activities_df["slr"].dropna().unique()))}
 
-    # Track trading activity per user
-    trading_spent = {user: 0 for user in budgets}
-    trading_earned = {user: 0 for user in budgets}
-
     for _, row in activities_df.iterrows():
         byr, slr, trp = row.get("byr"), row.get("slr"), row.get("trp", 0)
         try:
             if pd.isna(byr) and pd.notna(slr):
                 budgets[slr] += trp
-                trading_earned[slr] += trp
             elif pd.isna(slr) and pd.notna(byr):
                 budgets[byr] -= trp
-                trading_spent[byr] += trp
             elif pd.notna(byr) and pd.notna(slr):
                 budgets[byr] -= trp
                 budgets[slr] += trp
-                trading_spent[byr] += trp
-                trading_earned[slr] += trp
         except KeyError as e:
             print(f"Warning: Skipping invalid activity row {row}: {e}")
-
-    # Log trading activity for each user
-    for user in budgets:
-        if user == "LeonLMessi":
-            spent = trading_spent.get(user, 0)
-            earned = trading_earned.get(user, 0)
-            net = earned - spent
-            logger.info(f"[{user}] Trading: spent={spent:,.0f}, earned={earned:,.0f}, net={net:,.0f}")
-            logger.info(f"[{user}] Budget after trading: {budgets[user]:,.0f}")
 
     budget_df = pd.DataFrame(list(budgets.items()), columns=["User", "Budget"])
 
@@ -125,18 +119,10 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
         how="left"
     ).drop(columns=["name"], errors="ignore")
 
-    # Log point bonus before applying
-    for _, row in budget_df.iterrows():
-        if row['User'] == "LeonLMessi" and pd.notna(row.get("point_bonus")):
-            logger.info(f"[{row['User']}] Point bonus: {row['point_bonus']:,.0f}")
-
     budget_df["Budget"] = budget_df["Budget"] + budget_df["point_bonus"].fillna(0)
     budget_df.drop(columns=["point_bonus"], inplace=True, errors="ignore")
 
     # add total login bonus equally to everyone (100% estimation, if the user logged in every day)
-    for user in budget_df["User"]:
-        if user == "LeonLMessi":
-            logger.info(f"[{user}] Login bonus: {total_login_bonus:,.0f}")
     budget_df["Budget"] += total_login_bonus
 
     # Ensure consistent float format
@@ -147,20 +133,12 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
         achievement_bonus = calc_achievement_bonus_by_points(token, league_id, user, total_achievement_bonus)
         budget_df.loc[budget_df["User"] == user, "Budget"] += achievement_bonus
 
-    # Log calculated budgets for all users
-    for _, row in budget_df.iterrows():
-        if row['User'] == "LeonLMessi":
-            logger.info(f"[{row['User']}] Calculated budget: {row['Budget']:,.1f}")
-
     # Sync with own actual budget
     try:
         own_budget = get_budget(token, league_id)
         own_username = get_username(token)
         mask = budget_df["User"] == own_username
         if not budget_df.loc[mask, "Budget"].eq(own_budget).all():
-            calculated_budget = budget_df.loc[mask, "Budget"].values[0]
-            difference = own_budget - calculated_budget
-            logger.info(f"[{own_username}] Budget mismatch - calculated: {calculated_budget:,.1f}, actual: {own_budget:,.1f}, difference: {difference:,.1f}")
             budget_df.loc[mask, "Budget"] = own_budget
     except Exception as e:
         print(f"Warning: Could not sync own budget: {e}")
@@ -212,9 +190,6 @@ def calc_achievement_bonus_by_points(token, league_id, username, anchor_achievem
 
     # If the user is the anchor, return exactly the anchor achievement bonus
     if username == anchor_user:
-        if username == "LeonLMessi":
-            logger.info(f"[{username}] Achievement bonus calculation: anchor user with {anchor_points} points, bonus={anchor_achievement_bonus:,.1f}")
-            logger.info(f"[{username}] Achievement bonus: {anchor_achievement_bonus:,.1f}")
         return anchor_achievement_bonus
 
     # Get target user's points
@@ -230,9 +205,6 @@ def calc_achievement_bonus_by_points(token, league_id, username, anchor_achievem
         scale = user_points / anchor_points
 
     estimated_bonus = anchor_achievement_bonus * scale
-    if username == "LeonLMessi":
-        logger.info(f"[{username}] Achievement bonus calculation: {user_points} points (anchor: {anchor_points}), scale={scale:.4f}, bonus={estimated_bonus:,.1f}")
-        logger.info(f"[{username}] Achievement bonus: {estimated_bonus:,.1f}")
     return estimated_bonus
 
 def calc_achievement_bonus_by_rank(token, league_id, username, anchor_achievement_bonus):
