@@ -11,8 +11,16 @@ from kickbase_api.manager import (
 from kickbase_api.others import get_achievement_reward
 import pandas as pd
 
-def calc_manager_budgets(token, league_id, league_start_date, start_budget):
-    """Calculate manager budgets based on activities, bonuses, and team performance."""
+def calc_manager_budgets(token, league_id, league_start_date, start_budget, reset_baseline_points=None):
+    """Calculate manager budgets based on activities, bonuses, and team performance.
+    
+    Args:
+        reset_baseline_points: Dict of {username: points} at reset time. If provided, only points 
+                               earned since reset will be counted. Use {} to ignore all point bonuses.
+    """
+    
+    if reset_baseline_points is None:
+        reset_baseline_points = {}
 
     try:
         activities, login_bonus, achievement_bonus = get_league_activities(token, league_id, league_start_date)
@@ -20,11 +28,19 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget):
         raise RuntimeError(f"Failed to fetch activities: {e}")
 
     activities_df = pd.DataFrame(activities)
+    print(f"\n{'='*60}")
+    print(f"DEBUG: Found {len(activities_df)} activities since {league_start_date}")
+    print(f"{'='*60}")
 
     # Bonuses
     total_login_bonus = sum(entry.get("data", {}).get("bn", 0) for entry in login_bonus)
+    print(f"\n1️⃣ LOGIN BONUS: {total_login_bonus:,.2f}€ (from {len(login_bonus)} login events)")
+    if len(login_bonus) > 0:
+        print(f"   First login: {login_bonus[0].get('dt', 'N/A')}")
+        print(f"   Last login: {login_bonus[-1].get('dt', 'N/A')}")
 
     total_achievement_bonus = 0
+    print(f"\n2️⃣ ACHIEVEMENT BONUSES:")
     for item in achievement_bonus:
         try:
             a_id = item.get("data", {}).get("t")
@@ -32,8 +48,11 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget):
                 continue
             amount, reward = get_achievement_reward(token, league_id, a_id)
             total_achievement_bonus += amount * reward
+            print(f"   Achievement {a_id}: {amount} x {reward:,.0f}€ = {amount * reward:,.2f}€")
         except Exception as e:
             print(f"Warning: Failed to process achievement bonus {item}: {e}")
+    
+    print(f"   TOTAL: {total_achievement_bonus:,.2f}€")
 
     # Manager performances
     try:
@@ -42,6 +61,7 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget):
         raise RuntimeError(f"Failed to fetch managers: {e}")
 
     performances = []
+    print(f"\n3️⃣ MANAGER PERFORMANCE (Point Bonuses):")
     for manager in managers:
         try:
             manager_name, manager_id = manager
@@ -51,12 +71,22 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget):
             perf = get_manager_performance(token, league_id, manager_id, manager_name)
             perf["Team Value"] = team_value
             performances.append(perf)
+            points = perf.get('tp', 0)
+            bonus = points * 1000
+            print(f"   {manager_name}: {points} points → {bonus:,.0f}€ bonus (Team Value: {team_value:,.0f}€)")
         except Exception as e:
             print(f"Warning: Skipping manager {manager}: {e}")
 
     perf_df = pd.DataFrame(performances)
     if not perf_df.empty:
-        perf_df["point_bonus"] = perf_df["tp"].fillna(0) * 1000
+        # Calculate points earned since reset (baseline points subtracted)
+        print(f"\n⚠️  Using baseline points from reset - calculating points since reset:")
+        perf_df["baseline_points"] = perf_df["name"].map(reset_baseline_points).fillna(0)
+        perf_df["points_since_reset"] = perf_df["tp"].fillna(0) - perf_df["baseline_points"]
+        perf_df["point_bonus"] = perf_df["points_since_reset"] * 1000
+        
+        for _, row in perf_df.iterrows():
+            print(f"   {row['name']}: {row['tp']:.0f} - {row['baseline_points']:.0f} = {row['points_since_reset']:.0f} points → {row['point_bonus']:,.0f}€")
     else:
         perf_df["name"] = []
         perf_df["point_bonus"] = []
@@ -121,6 +151,22 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget):
 
     # Sort by available budget ascending
     budget_df.sort_values("Available Budget", ascending=False, inplace=True, ignore_index=True)
+
+    # Final summary
+    total_budget_sum = budget_df["Budget"].sum()
+    total_team_value = budget_df["Team Value"].sum()
+    total_available = budget_df["Available Budget"].sum()
+    total_wealth = total_budget_sum + total_team_value
+    
+    print(f"\n🎯 FINAL RESULTS:")
+    print(f"{'='*60}")
+    print(f"   Total budget sum: {total_budget_sum:,.2f}€")
+    print(f"   Total team value: {total_team_value:,.2f}€")
+    print(f"   Total wealth (Budget + Team Value): {total_wealth:,.2f}€")
+    print(f"   Expected for {len(budget_df)} managers @ 150M each: {len(budget_df) * 150_000_000:,.2f}€")
+    print(f"   Difference: {total_wealth - (len(budget_df) * 150_000_000):,.2f}€")
+    print(f"   Total available budget: {total_available:,.2f}€")
+    print(f"{'='*60}\n")
 
     return budget_df
 
