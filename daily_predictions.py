@@ -14,9 +14,19 @@ from features.budgets import calc_manager_budgets
 from IPython.display import display
 from dotenv import load_dotenv
 import os, pandas as pd
+# import logging
 
 # Load environment variables from .env file
-load_dotenv() 
+load_dotenv()
+
+# Configure logging
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(levelname)s:%(name)s:%(message)s',
+#     handlers=[
+#         logging.StreamHandler()
+#     ]
+# ) 
 
 # ----------------- Notes & TODOs -----------------
 
