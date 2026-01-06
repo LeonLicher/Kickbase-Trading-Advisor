@@ -37,6 +37,9 @@ def join_current_squad(token, league_id, today_df_results):
     squad_players = get_players_in_squad(token, league_id)
 
     squad_df = pd.DataFrame(squad_players["it"])
+    
+    # Sort squad_df by the merge key "i" before merging
+    squad_df = squad_df.sort_values("i")
 
     # Join squad_df ("i") with today_df ("player_id")
     squad_df = (
@@ -69,6 +72,9 @@ def join_current_market(token, league_id, today_df_results):
 
     # players_on_market to DataFrame
     market_df = pd.DataFrame(players_on_market)
+    
+    # Sort market_df by the merge key "id" before merging
+    market_df = market_df.sort_values("id")
 
     # Join market_df ("id") with today_df ("player_id")
     bid_df = (
