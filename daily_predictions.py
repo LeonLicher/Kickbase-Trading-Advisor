@@ -67,7 +67,23 @@ pd.set_option("display.width", 1000)
 competition_ids = [1]                   # 1 = Bundesliga, 2 = 2. Bundesliga, 3 = La Liga
 league_name = "Kegelbrüder OS"  # Name of your league, must be exact match, can be done via env or hardcoded
 start_budget = 50_000_000               # Starting budget of your league, used to calculate current budgets of other managers
-league_start_date = "2025-08-08"        # Start date of your league, used to filter activities, format: YYYY-MM-DD
+league_start_date = "2025-12-23T10:00:00"        # Start date of your league, used to filter activities, format: YYYY-MM-DD
+reset_baseline_points = {               # Points at reset time - only points earned since reset will be counted
+    "MoritzKoch_1": 14225,
+    "Gatter": 14138,
+    "Ole": 7193,
+    "Timo": 14135,
+    "Bobby": 17237,
+    "Sören": 13813,
+    "Ruben": 8861,
+    "TimNie": 10264,
+    "FD27": 12970,
+    "Leon": 9398,
+    "Nils": 15016,
+    "LeonLMessi": 15654,
+    "Samuel": 8815,
+    "Apple User": 10894,
+}
 email = os.getenv("EMAIL_USER")         # Email to send recommendations to, can be the same as EMAIL_USER or different
 
 # ---------------------------------------------------
@@ -82,7 +98,7 @@ print("\nLogged in to Kickbase.")
 league_id = get_league_id(token, league_name)
 
 # Calculate (estimated) budgets of all managers in the league
-manager_budgets_df = calc_manager_budgets(token, league_id, league_start_date, start_budget)
+manager_budgets_df = calc_manager_budgets(token, league_id, league_start_date, start_budget, reset_baseline_points)
 print("\n=== Manager Budgets ===")
 display(manager_budgets_df)
 
