@@ -144,6 +144,7 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
         print(f"Warning: Could not sync own budget: {e}")
 
     # TODO check if this also applies if the user has positiv budget, currently only tested with negative budget
+    budget_df["Total Wealth"] = budget_df["Team Value"].fillna(0) + budget_df["Budget"].fillna(0)
     budget_df["Max Negative"] = (budget_df["Team Value"].fillna(0) + budget_df["Budget"]) * -0.33
 
     # Calculate available budget
@@ -156,7 +157,7 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
     total_budget_sum = budget_df["Budget"].sum()
     total_team_value = budget_df["Team Value"].sum()
     total_available = budget_df["Available Budget"].sum()
-    total_wealth = total_budget_sum + total_team_value
+    total_wealth = budget_df["Total Wealth"].sum()
     
     print(f"\n🎯 FINAL RESULTS:")
     print(f"{'='*60}")
