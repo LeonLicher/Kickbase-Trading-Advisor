@@ -145,7 +145,7 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
 
     # TODO check if this also applies if the user has positiv budget, currently only tested with negative budget
     budget_df["Total Wealth"] = budget_df["Team Value"].fillna(0) + budget_df["Budget"].fillna(0)
-    budget_df["Max Negative"] = (budget_df["Team Value"].fillna(0) + budget_df["Budget"]) * -0.33
+    budget_df["Max Negative"] = budget_df["Total Wealth"] * -0.33
 
     # Calculate available budget
     budget_df["Available Budget"] = (budget_df["Max Negative"].fillna(0) - budget_df["Budget"]) * -1
