@@ -15,8 +15,8 @@ def preprocess_player_data(df):
     ]
 
     # Convert date columns to datetime
-    df["date"] = pd.to_datetime(df["date"])
-    df["md"] = pd.to_datetime(df["md"])
+    df["date"] = pd.to_datetime(df["date"]).dt.as_unit('s')
+    df["md"] = pd.to_datetime(df["md"]).dt.as_unit('s')
 
     # 2. Date and matchday calculations 
     df["next_day"] = df.groupby("player_id")["date"].shift(-1) 

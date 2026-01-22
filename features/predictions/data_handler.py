@@ -117,7 +117,7 @@ def save_player_data_to_db(token, competition_ids, last_mv_values, last_pfm_valu
                 # Market Value
                 mv_df = pd.DataFrame(get_player_market_value(token, competition_id, player_id, last_mv_values))
                 if not mv_df.empty:
-                    mv_df["date"] = pd.to_datetime(mv_df["date"])
+                    mv_df["date"] = pd.to_datetime(mv_df["date"]).dt.as_unit('s')
                     mv_df = mv_df.sort_values("date")
 
                 # Special case for players with 500k market value and no change, manually add them
@@ -130,10 +130,10 @@ def save_player_data_to_db(token, competition_ids, last_mv_values, last_pfm_valu
                 # Performance
                 p_df = pd.DataFrame(get_player_performance(token, competition_id, player_id, last_pfm_values, player_team_id))
                 if not p_df.empty:
-                    p_df["date"] = pd.to_datetime(p_df["date"])
+                    p_df["date"] = pd.to_datetime(p_df["date"]).dt.as_unit('s')
                     p_df = p_df.sort_values("date")
                 else:
-                    p_df = pd.DataFrame({"date": pd.to_datetime([])})
+                    p_df = pd.DataFrame({"date": pd.to_datetime([]).as_unit('s')})
 
                 # Merge DataFrames
                 merged_df = (
