@@ -150,8 +150,8 @@ def calc_manager_budgets(token, league_id, league_start_date, start_budget, rese
     # Calculate available budget
     budget_df["Available Budget"] = (budget_df["Max Negative"].fillna(0) - budget_df["Budget"]) * -1
 
-    # Sort by available budget ascending
-    budget_df.sort_values("Available Budget", ascending=False, inplace=True, ignore_index=True)
+    # Sort by total wealth descending
+    budget_df.sort_values("Total Wealth", ascending=False, inplace=True, ignore_index=True)
 
     # Final summary
     total_budget_sum = budget_df["Budget"].sum()
