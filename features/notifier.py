@@ -8,7 +8,7 @@ def send_mail(budget_df, market_df, squad_df, email):
     """Sends an email with the provided DataFrames as HTML tables."""
 
     if "Total Wealth" in budget_df.columns:
-        budget_df = budget_df.sort_values("Total Wealth", ascending=False, ignore_index=True)
+        budget_df.sort_values("Total Wealth", ascending=False, inplace=True, ignore_index=True)
 
     if not email:
         print("\nNo email provided, skipping email sending.")
