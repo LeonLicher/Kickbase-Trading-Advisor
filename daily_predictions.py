@@ -34,7 +34,9 @@ load_dotenv()
 # TODO Add prediction of 3, 7 days, to give more context
 # TODO Based upon the overpay of the other users, calculate a max price to pay for a player
 # TODO Add features like starting 11 probability, injuries, ...
-# TODO Improve budget calculation, weird bug that for me the budgets is 513929 off, idk why, checked everything
+# TODO Budget estimate is still ~0.3% off (own budget is synced exactly, others are estimates).
+#      Remaining gap is likely login/achievement bonuses of other managers, which the activity
+#      feed only exposes for ourselves.
 
 # ----------------- SYSTEM PARAMETERS -----------------
 # Should be left unchanged unless you know what you're doing
@@ -66,25 +68,13 @@ pd.set_option("display.width", 1000)
 
 competition_ids = [1]                   # 1 = Bundesliga, 2 = 2. Bundesliga, 3 = La Liga
 league_name = "Kegelbrüder OS"  # Name of your league, must be exact match, can be done via env or hardcoded
-start_budget = 50_000_000               # Starting budget of your league, used to calculate current budgets of other managers
-league_start_date = "2025-12-23T10:00:00"        # Start date of your league, used to filter activities, format: YYYY-MM-DD
-reset_baseline_points = {               # Points at reset time - only points earned since reset will be counted
-    "MoritzKoch_1": 14225,
-    "Gatter": 14138,
-    "Ole": 7193,
-    "Timo": 14135,
-    "Bobby": 17237,
-    "Sören": 13813,
-    "Ruben": 8861,
-    "TimNie": 10264,
-    "FD27": 12970,
-    "Leon": 9398,
-    "Nils": 15016,
-    "LeonLMessi": 15654,
-    "Samuel": 8815,
-    "Apple User": 10894,
-}
 email = os.getenv("EMAIL_USER")         # Email to send recommendations to, can be the same as EMAIL_USER or different
+
+# The league start date (or date of the last reset) and the start budget are read from the
+# Kickbase API, so nothing has to be updated by hand when the league is reset. Only override
+# these if the API reports something wrong for your league.
+start_budget = None
+league_start_date = None
 
 # ---------------------------------------------------
 
@@ -98,7 +88,7 @@ print("\nLogged in to Kickbase.")
 league_id = get_league_id(token, league_name)
 
 # Calculate (estimated) budgets of all managers in the league
-manager_budgets_df = calc_manager_budgets(token, league_id, league_start_date, start_budget, reset_baseline_points)
+manager_budgets_df = calc_manager_budgets(token, league_id, league_start_date, start_budget)
 print("\n=== Manager Budgets ===")
 display(manager_budgets_df)
 
